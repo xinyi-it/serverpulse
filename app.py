@@ -21,7 +21,7 @@ def get_geo_info(ip):
     try:
         result = subprocess.run(
             ['curl', '-s', '--max-time', '5',
-             f'http://ip-api.com/json/{ip}?lang=zh-CN&fields=country,city,isp'],
+             f'https://ipinfo.io/{ip}/json'],
             capture_output=True, text=True, timeout=8
         )
         if result.returncode == 0 and result.stdout.strip():
@@ -29,7 +29,7 @@ def get_geo_info(ip):
             info = {
                 'country': data.get('country', '未知'),
                 'city': data.get('city', '未知'),
-                'isp': data.get('isp', '未知')
+                'isp': data.get('org', '未知').replace('AS', '').strip()
             }
             if info['city'] != '未知':
                 with geo_lock:
