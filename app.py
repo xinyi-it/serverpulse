@@ -1,13 +1,19 @@
 import json
+import os
 import psutil
 import platform
 import time
 import threading
 import subprocess
 from datetime import datetime
-from flask import Flask, jsonify, render_template, request
+from functools import wraps
+from flask import Flask, jsonify, render_template, request, session, redirect, url_for
 
 app = Flask(__name__)
+app.secret_key = os.urandom(24).hex()
+
+# 访问密码（可通过环境变量 SP_PASSWORD 修改）
+PASSWORD = os.environ.get('SP_PASSWORD', 'serverpulse2026')
 
 # 英文城市名 -> 中文映射（常见城市）
 CITY_CN = {
@@ -37,6 +43,30 @@ visitors = {}  # ip -> {first_seen, last_seen, city, isp}
 VISITOR_TIMEOUT = 300  # 5分钟无活动视为离开
 geo_cache = {}  # ip -> {city, isp, country}
 geo_lock = threading.Lock()
+
+def login_required(f):
+    """登录验证装饰器"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('authenticated'):
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        if request.form.get('password') == PASSWORD:
+            session['authenticated'] = True
+            return redirect(url_for('index'))
+        error = '密码错误，请重试'
+    return render_template('login.html', error=error)
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
 def get_geo_info(ip):
     """查询IP地理位置和运营商（用curl，比urllib更稳定）"""
@@ -199,10 +229,12 @@ def get_stats():
     }
 
 @app.route('/')
+@login_required
 def index():
     return render_template('index.html')
 
 @app.route('/api/stats')
+@login_required
 def api_stats():
     # 记录访客
     xff = request.headers.get('X-Forwarded-For', request.remote_addr)
@@ -213,6 +245,7 @@ def api_stats():
     return jsonify(stats)
 
 @app.route('/api/visitors')
+@login_required
 def api_visitors():
     return jsonify(get_active_visitors())
 
