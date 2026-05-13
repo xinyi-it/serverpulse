@@ -53,6 +53,13 @@ def track_visitor(ip):
         }
     else:
         visitors[ip]['last_seen'] = now
+        # 如果之前查询失败，重试
+        if visitors[ip].get('city') == '未知':
+            geo = get_geo_info(ip)
+            if geo['city'] != '未知':
+                visitors[ip]['city'] = geo['city']
+                visitors[ip]['isp'] = geo['isp']
+                visitors[ip]['country'] = geo['country']
 
 def get_active_visitors():
     """获取当前在线访客列表"""
