@@ -23,18 +23,20 @@ def get_geo_info(ip):
             f'http://ip-api.com/json/{ip}?lang=zh-CN&fields=country,city,isp',
             headers={'User-Agent': 'ServerPulse/1.0'}
         )
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             info = {
                 'country': data.get('country', '未知'),
                 'city': data.get('city', '未知'),
                 'isp': data.get('isp', '未知')
             }
-            with geo_lock:
-                geo_cache[ip] = info
+            # 只缓存有效结果，不缓存未知
+            if info['city'] != '未知':
+                with geo_lock:
+                    geo_cache[ip] = info
             return info
-    except Exception:
-        pass
+    except Exception as e:
+        print(f'[ServerPulse] 地理位置查询失败 {ip}: {e}')
     return {'country': '未知', 'city': '未知', 'isp': '未知'}
 
 def track_visitor(ip):
