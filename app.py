@@ -12,8 +12,17 @@ from flask import Flask, jsonify, render_template, request, session, redirect, u
 app = Flask(__name__)
 app.secret_key = os.urandom(24).hex()
 
-# 访问密码（可通过环境变量 SP_PASSWORD 修改）
-PASSWORD = os.environ.get('SP_PASSWORD', 'serverpulse2026')
+# 访问密码（从 .env 文件读取）
+def load_password():
+    env_file = os.path.join(os.path.dirname(__file__), '.env')
+    if os.path.exists(env_file):
+        with open(env_file) as f:
+            for line in f:
+                if line.startswith('SP_PASSWORD='):
+                    return line.strip().split('=', 1)[1]
+    return os.environ.get('SP_PASSWORD', 'serverpulse2026')
+
+PASSWORD = load_password()
 
 # 英文城市名 -> 中文映射（常见城市）
 CITY_CN = {
