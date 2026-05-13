@@ -200,7 +200,8 @@ def index():
 @app.route('/api/stats')
 def api_stats():
     # 记录访客
-    visitor_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    xff = request.headers.get('X-Forwarded-For', request.remote_addr)
+    visitor_ip = xff.split(',')[0].strip() if xff else None
     if visitor_ip and visitor_ip != '127.0.0.1':
         track_visitor(visitor_ip)
     stats = get_stats()
