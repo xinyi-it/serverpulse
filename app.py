@@ -62,14 +62,46 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated
 
+# 登录限流 - 防暴力破解
+login_attempts = {}  # ip -> {count, last_attempt}
+MAX_ATTEMPTS = 5
+LOCKOUT_TIME = 300  # 5分钟
+
+def check_rate_limit(ip):
+    now = time.time()
+    if ip in login_attempts:
+        info = login_attempts[ip]
+        if now - info['last_attempt'] > LOCKOUT_TIME:
+            del login_attempts[ip]
+        elif info['count'] >= MAX_ATTEMPTS:
+            return False
+    return True
+
+def record_failed_attempt(ip):
+    now = time.time()
+    if ip not in login_attempts:
+        login_attempts[ip] = {'count': 0, 'last_attempt': now}
+    info = login_attempts[ip]
+    if now - info['last_attempt'] > LOCKOUT_TIME:
+        info['count'] = 0
+    info['count'] += 1
+    info['last_attempt'] = now
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     error = None
+    client_ip = request.headers.get('X-Forwarded-For', request.remote_addr).split(',')[0].strip()
+    
     if request.method == 'POST':
-        if request.form.get('password') == PASSWORD:
+        if not check_rate_limit(client_ip):
+            error = '尝试次数过多，请5分钟后再试'
+        elif request.form.get('password') == PASSWORD:
             session['authenticated'] = True
+            login_attempts.pop(client_ip, None)
             return redirect(url_for('index'))
-        error = '密码错误，请重试'
+        else:
+            record_failed_attempt(client_ip)
+            error = '密码错误，请重试'
     return render_template('login.html', error=error)
 
 @app.route('/logout')
