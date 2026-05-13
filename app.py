@@ -1,10 +1,76 @@
 import psutil
 import platform
 import time
+import threading
+import urllib.request
 from datetime import datetime
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
+
+# 访客追踪 - 纯内存，不落盘
+visitors = {}  # ip -> {first_seen, last_seen, city, isp}
+VISITOR_TIMEOUT = 300  # 5分钟无活动视为离开
+geo_cache = {}  # ip -> {city, isp, country}
+geo_lock = threading.Lock()
+
+def get_geo_info(ip):
+    """查询IP地理位置和运营商（免费API，有缓存）"""
+    if ip in geo_cache:
+        return geo_cache[ip]
+    try:
+        req = urllib.request.Request(
+            f'http://ip-api.com/json/{ip}?lang=zh-CN&fields=country,city,isp',
+            headers={'User-Agent': 'ServerPulse/1.0'}
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            info = {
+                'country': data.get('country', '未知'),
+                'city': data.get('city', '未知'),
+                'isp': data.get('isp', '未知')
+            }
+            with geo_lock:
+                geo_cache[ip] = info
+            return info
+    except Exception:
+        pass
+    return {'country': '未知', 'city': '未知', 'isp': '未知'}
+
+def track_visitor(ip):
+    """记录访客活动"""
+    now = time.time()
+    if ip not in visitors:
+        geo = get_geo_info(ip)
+        visitors[ip] = {
+            'first_seen': now,
+            'last_seen': now,
+            'city': geo['city'],
+            'isp': geo['isp'],
+            'country': geo['country']
+        }
+    else:
+        visitors[ip]['last_seen'] = now
+
+def get_active_visitors():
+    """获取当前在线访客列表"""
+    now = time.time()
+    active = {}
+    for ip, info in visitors.items():
+        if now - info['last_seen'] <= VISITOR_TIMEOUT:
+            active[ip] = {
+                'city': info['city'],
+                'isp': info['isp'],
+                'country': info['country'],
+                'first_seen': datetime.fromtimestamp(info['first_seen']).strftime('%H:%M:%S'),
+                'last_seen': datetime.fromtimestamp(info['last_seen']).strftime('%H:%M:%S'),
+                'duration': int(now - info['first_seen'])
+            }
+    # 清理超时访客
+    expired = [ip for ip, info in visitors.items() if now - info['last_seen'] > VISITOR_TIMEOUT]
+    for ip in expired:
+        del visitors[ip]
+    return active
 
 def get_system_info():
     boot_time = psutil.boot_time()
@@ -90,7 +156,16 @@ def index():
 
 @app.route('/api/stats')
 def api_stats():
-    return jsonify(get_stats())
+    # 记录访客
+    visitor_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    if visitor_ip and visitor_ip != '127.0.0.1':
+        track_visitor(visitor_ip)
+    stats = get_stats()
+    return jsonify(stats)
+
+@app.route('/api/visitors')
+def api_visitors():
+    return jsonify(get_active_visitors())
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

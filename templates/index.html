@@ -338,6 +338,14 @@
         </table>
     </div>
 
+    <div class="card" style="margin-top: 20px;">
+        <div class="card-title">
+            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #38ef7d; animation: pulse 2s infinite;"></span>
+            当前在线访客
+            <span id="visitorCount" style="font-size: 0.85rem; color: #888; margin-left: 10px;">0 人</span>
+        </div>
+        <div id="visitorList" style="margin-top: 10px;"></div>
+    </div>
     <div class="last-update">
         <span style="margin-right: 15px;">最后更新: <span id="lastUpdate">--:--:--</span></span>
         <span class="timestamp" id="timestamp"></span>
@@ -588,6 +596,45 @@
             }
         }
 
+        async function fetchVisitors() {
+            try {
+                const resp = await fetch('/api/visitors');
+                const data = await resp.json();
+                const container = document.getElementById('visitorList');
+                const countEl = document.getElementById('visitorCount');
+                const ips = Object.keys(data);
+                countEl.textContent = ips.length + ' 人';
+
+                if (ips.length === 0) {
+                    container.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">暂无在线访客</div>';
+                    return;
+                }
+
+                container.innerHTML = ips.map(ip => {
+                    const v = data[ip];
+                    const durationMin = Math.floor(v.duration / 60);
+                    const durationStr = durationMin > 0 ? `${durationMin}分${v.duration % 60}秒` : `${v.duration}秒`;
+                    return `
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 15px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 8px; border-left: 3px solid #00d2ff;">
+                            <div style="flex: 1;">
+                                <div style="color: #e0e0e0; font-weight: 500; font-family: monospace;">${ip}</div>
+                                <div style="color: #888; font-size: 0.8rem; margin-top: 3px;">${v.country} · ${v.city}</div>
+                            </div>
+                            <div style="flex: 1; text-align: center;">
+                                <div style="color: #aaa; font-size: 0.85rem;">${v.isp}</div>
+                            </div>
+                            <div style="text-align: right; min-width: 120px;">
+                                <div style="color: #00d2ff; font-size: 0.85rem;">访问于 ${v.first_seen}</div>
+                                <div style="color: #666; font-size: 0.75rem; margin-top: 2px;">停留 ${durationStr}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (e) {
+                console.error('获取访客失败:', e);
+            }
+        }
+
         async function fetchStats() {
             try {
                 const response = await fetch('/api/stats');
@@ -607,6 +654,9 @@
                 document.getElementById('lastUpdate').textContent = data.timestamp;
                 document.getElementById('timestamp').textContent = 
                     ' | 数据刷新间隔: 3秒';
+
+                // 同步刷新访客列表
+                fetchVisitors();
             } catch (error) {
                 console.error('获取数据失败:', error);
                 document.getElementById('statusDot').className = 'status-dot status-critical';
