@@ -222,9 +222,10 @@
 <body>
     <div class="header">
         <h1>ServerPulse</h1>
-        <div class="subtitle">
+        <div class="subtitle" style="display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap;">
             <span class="status-dot status-online" id="statusDot"></span>
             实时服务器监控仪表盘
+            <span id="liveClock" style="font-family: 'Courier New', monospace; font-size: 1.1rem; color: #00d2ff; background: rgba(0,210,255,0.1); padding: 4px 12px; border-radius: 6px; letter-spacing: 2px;"></span>
         </div>
     </div>
 
@@ -338,8 +339,9 @@
     </div>
 
     <div class="last-update">
-        最后更新: <span id="lastUpdate">--:--:--</span>
+        <span style="margin-right: 15px;">最后更新: <span id="lastUpdate">--:--:--</span></span>
         <span class="timestamp" id="timestamp"></span>
+        <span style="margin-left: 15px; color: #00d2ff;">⏱ <span id="footerClock" style="font-family: 'Courier New', monospace;"></span></span>
     </div>
 
     <script>
@@ -610,6 +612,23 @@
                 document.getElementById('statusDot').className = 'status-dot status-critical';
             }
         }
+
+        // 实时时钟 - 纯前端，零服务器消耗
+        function updateClock() {
+            const now = new Date();
+            const y = now.getFullYear();
+            const mo = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const h = String(now.getHours()).padStart(2, '0');
+            const mi = String(now.getMinutes()).padStart(2, '0');
+            const s = String(now.getSeconds()).padStart(2, '0');
+            const timeStr = `${h}:${mi}:${s}`;
+            const dateStr = `${y}-${mo}-${d}`;
+            document.getElementById('liveClock').textContent = `${dateStr} ${timeStr}`;
+            document.getElementById('footerClock').textContent = `${dateStr} ${timeStr}`;
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
 
         fetchStats();
         setInterval(fetchStats, 3000);
