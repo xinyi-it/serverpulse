@@ -28,6 +28,8 @@ CITY_CN = {
 ISP_CN = {
     'China Mobile': '中国移动', 'China Unicom': '中国联通', 'China Telecom': '中国电信',
     'Alibaba': '阿里云', 'Tencent': '腾讯云', 'Huawei': '华为云', 'Baidu': '百度云',
+    'CHINANET': '中国电信', 'CNCGROUP': '中国联通', 'UNICOM': '中国联通',
+    'BACKBONE': '骨干网', 'CDN': 'CDN加速', 'CLOUD': '云服务',
 }
 
 # 访客追踪 - 纯内存，不落盘
@@ -55,11 +57,14 @@ def get_geo_info(ip):
             # 运营商简化
             isp = org_raw
             for key, val in ISP_CN.items():
-                if key in org_raw:
+                if key.lower() in org_raw.lower():
                     isp = val
                     break
-            # 去掉 AS 号
-            isp = isp.replace('AS', '').strip() if isp == org_raw else isp
+            # 如果没匹配到，尝试提取主要部分
+            if isp == org_raw:
+                # 去掉 AS 号和多余的描述
+                parts = org_raw.replace('AS', '').strip().split(',')
+                isp = parts[0].strip() if parts else org_raw
             info = {
                 'country': data.get('country', '未知'),
                 'city': city,
