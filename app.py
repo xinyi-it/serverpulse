@@ -1,3 +1,4 @@
+import json
 import psutil
 import platform
 import time
@@ -7,6 +8,27 @@ from datetime import datetime
 from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
+
+# 英文城市名 -> 中文映射（常见城市）
+CITY_CN = {
+    'Beijing': '北京', 'Shanghai': '上海', 'Guangzhou': '广州', 'Shenzhen': '深圳',
+    'Chengdu': '成都', 'Hangzhou': '杭州', 'Wuhan': '武汉', 'Nanjing': '南京',
+    'Chongqing': '重庆', 'Xi\'an': '西安', 'Suzhou': '苏州', 'Zhengzhou': '郑州',
+    'Changsha': '长沙', 'Dongguan': '东莞', 'Shenyang': '沈阳', 'Qingdao': '青岛',
+    'Tianjin': '天津', 'Ningbo': '宁波', 'Kunming': '昆明', 'Dalian': '大连',
+    'Xiamen': '厦门', 'Hefei': '合肥', 'Fuzhou': '福州', 'Jinan': '济南',
+    'Nanning': '南宁', 'Guiyang': '贵阳', 'Urumqi': '乌鲁木齐', 'Lhasa': '拉萨',
+    'Haikou': '海口', 'Sanya': '三亚', 'Zhuhai': '珠海', 'Foshan': '佛山',
+    'Wenzhou': '温州', 'Nantong': '南通', 'Changzhou': '常州', 'Xuzhou': '徐州',
+    'Taiyuan': '太原', 'Nanchang': '南昌', 'GuiLin': '桂林', 'Lanzhou': '兰州',
+    'Hohhot': '呼和浩特', 'Harbin': '哈尔滨', 'Changchun': '长春', 'Shijiazhuang': '石家庄',
+}
+
+# 运营商简称
+ISP_CN = {
+    'China Mobile': '中国移动', 'China Unicom': '中国联通', 'China Telecom': '中国电信',
+    'Alibaba': '阿里云', 'Tencent': '腾讯云', 'Huawei': '华为云', 'Baidu': '百度云',
+}
 
 # 访客追踪 - 纯内存，不落盘
 visitors = {}  # ip -> {first_seen, last_seen, city, isp}
@@ -26,10 +48,22 @@ def get_geo_info(ip):
         )
         if result.returncode == 0 and result.stdout.strip():
             data = json.loads(result.stdout)
+            city_en = data.get('city', '未知')
+            org_raw = data.get('org', '未知')
+            # 中文城市映射
+            city = CITY_CN.get(city_en, city_en)
+            # 运营商简化
+            isp = org_raw
+            for key, val in ISP_CN.items():
+                if key in org_raw:
+                    isp = val
+                    break
+            # 去掉 AS 号
+            isp = isp.replace('AS', '').strip() if isp == org_raw else isp
             info = {
                 'country': data.get('country', '未知'),
-                'city': data.get('city', '未知'),
-                'isp': data.get('org', '未知').replace('AS', '').strip()
+                'city': city,
+                'isp': isp
             }
             if info['city'] != '未知':
                 with geo_lock:
