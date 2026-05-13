@@ -2,7 +2,7 @@ import psutil
 import platform
 import time
 import threading
-import urllib.request
+import subprocess
 from datetime import datetime
 from flask import Flask, jsonify, render_template, request
 
@@ -15,22 +15,22 @@ geo_cache = {}  # ip -> {city, isp, country}
 geo_lock = threading.Lock()
 
 def get_geo_info(ip):
-    """查询IP地理位置和运营商（免费API，有缓存）"""
+    """查询IP地理位置和运营商（用curl，比urllib更稳定）"""
     if ip in geo_cache:
         return geo_cache[ip]
     try:
-        req = urllib.request.Request(
-            f'http://ip-api.com/json/{ip}?lang=zh-CN&fields=country,city,isp',
-            headers={'User-Agent': 'ServerPulse/1.0'}
+        result = subprocess.run(
+            ['curl', '-s', '--max-time', '5',
+             f'http://ip-api.com/json/{ip}?lang=zh-CN&fields=country,city,isp'],
+            capture_output=True, text=True, timeout=8
         )
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
+        if result.returncode == 0 and result.stdout.strip():
+            data = json.loads(result.stdout)
             info = {
                 'country': data.get('country', '未知'),
                 'city': data.get('city', '未知'),
                 'isp': data.get('isp', '未知')
             }
-            # 只缓存有效结果，不缓存未知
             if info['city'] != '未知':
                 with geo_lock:
                     geo_cache[ip] = info
